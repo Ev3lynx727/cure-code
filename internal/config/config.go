@@ -18,6 +18,7 @@ type Config struct {
 }
 
 var globalConfig *Config
+var globalMultiProvider *MultiProviderConfig
 
 func GetConfigPath() string {
 	home, _ := os.UserHomeDir()
@@ -66,8 +67,22 @@ func Load() *Config {
 	return globalConfig
 }
 
+func LoadMulti() (*MultiProviderConfig, error) {
+	if globalMultiProvider != nil {
+		return globalMultiProvider, nil
+	}
+
+	cfg, err := LoadMultiProvider()
+	if err != nil {
+		return nil, err
+	}
+	globalMultiProvider = cfg
+	return cfg, nil
+}
+
 func ResetCache() {
 	globalConfig = nil
+	globalMultiProvider = nil
 }
 
 func EnsureConfigDirs() error {
@@ -107,11 +122,47 @@ func Save(cfg *Config) error {
 	return os.WriteFile(configPath, data, 0644)
 }
 
+func SaveMulti(cfg *MultiProviderConfig) error {
+	if err := SaveMultiProvider(cfg); err != nil {
+		return err
+	}
+	globalMultiProvider = cfg
+	return nil
+}
+
 func SaveLastModel(provider, model string) error {
 	cfg := Load()
 	cfg.LastProvider = provider
 	cfg.LastModel = model
 	return Save(cfg)
+}
+
+func SaveProviderConfig(providerName string, providerCfg ProviderConfig) error {
+	cfg, err := LoadMulti()
+	if err != nil {
+		return err
+	}
+
+	if cfg.Providers == nil {
+		cfg.Providers = make(map[string]ProviderConfig)
+	}
+	cfg.Providers[providerName] = providerCfg
+
+	return SaveMulti(cfg)
+}
+
+func SetActiveProvider(providerName string) error {
+	cfg, err := LoadMulti()
+	if err != nil {
+		return err
+	}
+
+	if _, ok := cfg.Providers[providerName]; !ok {
+		return fmt.Errorf("provider not found: %s", providerName)
+	}
+
+	cfg.Active = providerName
+	return SaveMulti(cfg)
 }
 
 func SaveFirstRun(status bool) error {
@@ -162,4 +213,31 @@ func SaveAPIKey(keyName, keyValue string) error {
 
 	content := strings.Join(newLines, "\n") + "\n"
 	return os.WriteFile(envPath, []byte(content), 0644)
+}
+
+func GetAPIKey(providerName string) string {
+	envVar := getAPIKeyEnvForProviderString(providerName)
+	if envVar == "" {
+		return ""
+	}
+	return os.Getenv(envVar)
+}
+
+func getAPIKeyEnvForProviderString(provider string) string {
+	keyMap := map[string]string{
+		"gemini":   "GEMINI_API_KEY",
+		"openai":   "OPENAI_API_KEY",
+		"claude":   "ANTHROPIC_API_KEY",
+		"nvidia":   "NVIDIA_API_KEY",
+		"xai":      "XAI_API_KEY",
+		"deepseek": "DEEPSEEK_API_KEY",
+		"openrouter": "OPENROUTER_API_KEY",
+		"together": "TOGETHER_API_KEY",
+		"mistral":  "MISTRAL_API_KEY",
+	}
+
+	if key, ok := keyMap[provider]; ok {
+		return key
+	}
+	return ""
 }

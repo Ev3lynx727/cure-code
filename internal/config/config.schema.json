@@ -1,0 +1,210 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://curecode.app/schema/config.json",
+  "title": "CuReCode Configuration Schema",
+  "description": "JSON Schema for CuReCode multi-provider configuration",
+  "type": "object",
+  "required": ["$schema", "version", "providers"],
+  "properties": {
+    "$schema": {
+      "type": "string",
+      "format": "uri",
+      "default": "https://curecode.app/schema/config.json"
+    },
+    "version": {
+      "type": "string",
+      "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$",
+      "description": "Config schema version (semver)"
+    },
+    "language": {
+      "type": "string",
+      "enum": ["en"],
+      "default": "en"
+    },
+    "first_run": {
+      "type": "boolean",
+      "default": true
+    },
+    "providers": {
+      "type": "object",
+      "description": "Map of provider name to provider configuration",
+      "minProperties": 1,
+      "additionalProperties": {
+        "$ref": "#/definitions/ProviderConfig"
+      }
+    },
+    "active": {
+      "type": "string",
+      "description": "Currently active provider name"
+    },
+    "fallback_chain": {
+      "type": "array",
+      "description": "Ordered list of providers to try in sequence",
+      "items": {
+        "type": "string"
+      },
+      "uniqueItems": true
+    },
+    "hot_reload": {
+      "$ref": "#/definitions/HotReloadConfig"
+    },
+    "session": {
+      "$ref": "#/definitions/SessionConfig"
+    },
+    "ui": {
+      "$ref": "#/definitions/UIConfig"
+    }
+  },
+  "definitions": {
+    "ProviderConfig": {
+      "type": "object",
+      "required": ["enabled", "model"],
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Whether this provider is enabled"
+        },
+        "api_key_env": {
+          "type": ["string", "null"],
+          "description": "Environment variable name containing the API key"
+        },
+        "model": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Model identifier (e.g., gemini-2.5-flash, gpt-4o-mini)"
+        },
+        "base_url": {
+          "type": ["string", "null"],
+          "format": "uri",
+          "description": "Custom API endpoint (for Ollama, custom APIs)"
+        },
+        "priority": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 999,
+          "default": 99,
+          "description": "Selection priority (lower = higher priority)"
+        },
+        "settings": {
+          "$ref": "#/definitions/ProviderSettings"
+        }
+      }
+    },
+    "ProviderSettings": {
+      "type": "object",
+      "description": "Provider-specific inference settings",
+      "properties": {
+        "temperature": {
+          "type": ["number", "null"],
+          "minimum": 0,
+          "maximum": 2,
+          "default": 0.7,
+          "description": "Sampling temperature"
+        },
+        "top_p": {
+          "type": ["number", "null"],
+          "minimum": 0,
+          "maximum": 1,
+          "description": "Nucleus sampling parameter"
+        },
+        "top_k": {
+          "type": ["integer", "null"],
+          "minimum": 1,
+          "description": "Top-k sampling parameter"
+        },
+        "max_tokens": {
+          "type": ["integer", "null"],
+          "minimum": 1,
+          "default": 2048,
+          "description": "Maximum tokens in response"
+        },
+        "system_prompt": {
+          "type": ["string", "null"],
+          "description": "Override system prompt for this provider"
+        },
+        "timeout_seconds": {
+          "type": ["integer", "null"],
+          "minimum": 10,
+          "default": 120,
+          "description": "Request timeout in seconds"
+        }
+      }
+    },
+    "HotReloadConfig": {
+      "type": "object",
+      "description": "Configuration for hot-reload functionality",
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "default": true
+        },
+        "watch_file": {
+          "type": "boolean",
+          "default": true
+        },
+        "debounce_ms": {
+          "type": "integer",
+          "minimum": 100,
+          "maximum": 5000,
+          "default": 500,
+          "description": "Debounce delay for config file changes"
+        }
+      }
+    },
+    "SessionConfig": {
+      "type": "object",
+      "description": "Session persistence settings",
+      "properties": {
+        "auto_save": {
+          "type": "boolean",
+          "default": true
+        },
+        "auto_save_interval": {
+          "type": "integer",
+          "minimum": 60,
+          "default": 300,
+          "description": "Auto-save interval in seconds"
+        },
+        "max_history": {
+          "type": "integer",
+          "minimum": 10,
+          "maximum": 10000,
+          "default": 1000,
+          "description": "Maximum messages to keep in history"
+        },
+        "max_sessions": {
+          "type": "integer",
+          "minimum": 1,
+          "default": 50,
+          "description": "Maximum saved sessions to keep"
+        }
+      }
+    },
+    "UIConfig": {
+      "type": "object",
+      "description": "User interface preferences",
+      "properties": {
+        "theme": {
+          "type": "string",
+          "enum": ["default", "dark", "light"],
+          "default": "default"
+        },
+        "compact_mode": {
+          "type": "boolean",
+          "default": false,
+          "description": "Show compact output"
+        },
+        "show_tokens": {
+          "type": "boolean",
+          "default": true,
+          "description": "Show token count after each response"
+        },
+        "verbose_errors": {
+          "type": "boolean",
+          "default": true,
+          "description": "Show detailed error messages"
+        }
+      }
+    }
+  }
+}

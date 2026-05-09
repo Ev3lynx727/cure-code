@@ -5,6 +5,7 @@ go 1.24
 require (
 	github.com/c-bata/go-prompt v0.2.6
 	github.com/fatih/color v1.18.0
+	github.com/fsnotify/fsnotify v1.10.1
 	github.com/joho/godotenv v1.5.1
 	github.com/spf13/cobra v1.10.2
 )
