@@ -1,5 +1,7 @@
 package agent
 
+import "time"
+
 type Message struct {
 	Role       string     `json:"role"`
 	Content    string     `json:"content,omitempty"`
@@ -7,6 +9,7 @@ type Message struct {
 	ToolCalls  []ToolCall `json:"tool_calls,omitempty"`
 	ToolCallID string     `json:"tool_call_id,omitempty"`
 	Name       string     `json:"name,omitempty"`
+	Timestamp  time.Time  `json:"timestamp,omitempty"`
 }
 
 type ToolCall struct {

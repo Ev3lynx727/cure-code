@@ -1,6 +1,8 @@
 package agent
 
 import (
+	"crypto/rand"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -9,29 +11,59 @@ import (
 	"time"
 )
 
-type SessionData struct {
-	ID        string    `json:"id"`
-	Timestamp time.Time `json:"timestamp"`
-	History   []Message `json:"history"`
-	Tasks     []Task    `json:"tasks,omitempty"`
-	WorkDir   string    `json:"work_dir"`
+type SessionMetadata struct {
+	Provider        string `json:"provider"`
+	Model          string `json:"model"`
+	StartTime      string `json:"start_time"`
+	EndTime        string `json:"end_time,omitempty"`
+	TotalInputTokens  int `json:"total_input_tokens"`
+	TotalOutputTokens int `json:"total_output_tokens"`
+	TotalTokens     int `json:"total_tokens"`
+	ToolCallCount   int `json:"tool_call_count"`
+	Version        string `json:"version"`
 }
 
-func SaveSession(history []Message, tasks []Task, workDir, configDir string) (string, error) {
+type SessionData struct {
+	SessionID  string         `json:"session_id"`
+	Timestamp  time.Time      `json:"timestamp"`
+	LastActive time.Time      `json:"last_active"`
+	History    []Message      `json:"history"`
+	Tasks      []Task         `json:"tasks,omitempty"`
+	WorkDir    string         `json:"work_dir"`
+	Metadata   SessionMetadata `json:"metadata"`
+}
+
+func generateShortID(length int) string {
+	bytes := make([]byte, length/2+1)
+	rand.Read(bytes)
+	return hex.EncodeToString(bytes)[:length]
+}
+
+func generateSessionID() string {
+	return fmt.Sprintf("session_%s_%s",
+		time.Now().Format("20060102_150405"),
+		generateShortID(8),
+	)
+}
+
+func SaveSession(history []Message, tasks []Task, workDir, configDir string, metadata SessionMetadata) (string, error) {
 	sessionDir := filepath.Join(configDir, "sessions")
 	if err := os.MkdirAll(sessionDir, 0755); err != nil {
 		return "", fmt.Errorf("failed to create session directory: %v", err)
 	}
 
-	sessionID := fmt.Sprintf("session-%d", time.Now().Unix())
+	sessionID := generateSessionID()
 	sessionPath := filepath.Join(sessionDir, sessionID+".json")
 
+	now := time.Now()
 	data := SessionData{
-		ID:        sessionID,
-		Timestamp: time.Now(),
-		History:   history,
-		Tasks:     tasks,
-		WorkDir:   workDir,
+		SessionID:  sessionID,
+		Timestamp:  now,
+		LastActive: now,
+		History:    history,
+		Tasks:      tasks,
+		WorkDir:    workDir,
+		Metadata:   metadata,
 	}
 
 	file, err := json.MarshalIndent(data, "", "  ")
@@ -46,7 +78,7 @@ func SaveSession(history []Message, tasks []Task, workDir, configDir string) (st
 	return sessionID, nil
 }
 
-func LoadSession(sessionID, configDir string) ([]Message, []Task, error) {
+func LoadSession(sessionID, configDir string) ([]Message, []Task, SessionMetadata, error) {
 	sessionPath := filepath.Join(configDir, "sessions", sessionID+".json")
 	if !strings.HasSuffix(sessionID, ".json") {
 		sessionPath = filepath.Join(configDir, "sessions", sessionID+".json")
@@ -54,15 +86,15 @@ func LoadSession(sessionID, configDir string) ([]Message, []Task, error) {
 
 	file, err := os.ReadFile(sessionPath)
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed to read session file: %v", err)
+		return nil, nil, SessionMetadata{}, fmt.Errorf("failed to read session file: %v", err)
 	}
 
 	var data SessionData
 	if err := json.Unmarshal(file, &data); err != nil {
-		return nil, nil, fmt.Errorf("failed to unmarshal session: %v", err)
+		return nil, nil, SessionMetadata{}, fmt.Errorf("failed to unmarshal session: %v", err)
 	}
 
-	return data.History, data.Tasks, nil
+	return data.History, data.Tasks, data.Metadata, nil
 }
 
 func ListSessions(configDir string) ([]string, error) {

@@ -210,13 +210,14 @@ func runREPL(sessionID string) error {
 
 	if sessionID != "" {
 		configDir := filepath.Dir(config.GetConfigPath())
-		history, tasks, err := agent.LoadSession(sessionID, configDir)
+		history, tasks, metadata, err := agent.LoadSession(sessionID, configDir)
 		if err != nil {
 			color.Red("  Error loading session '%s': %v\n", sessionID, err)
 		} else {
 			ag.History = history
 			ag.Tasks = tasks
 			color.Green("  [OK] Resumed session: %s\n", sessionID)
+			color.Cyan("    Provider: %s | Model: %s | Tokens: %d\n", metadata.Provider, metadata.Model, metadata.TotalTokens)
 		}
 	}
 
@@ -327,7 +328,18 @@ func runREPL(sessionID string) error {
 
 	if len(ag.History) > 0 {
 		configDir := filepath.Dir(config.GetConfigPath())
-		id, err := agent.SaveSession(ag.History, ag.Tasks, ag.WorkDir, configDir)
+		metadata := agent.SessionMetadata{
+			Provider:          ag.Provider.Name(),
+			Model:            ag.Provider.Name(),
+			StartTime:        ag.History[0].Timestamp.Format(time.RFC3339),
+			EndTime:          time.Now().Format(time.RFC3339),
+			TotalInputTokens:  ag.Usage.TotalInputTokens,
+			TotalOutputTokens: ag.Usage.TotalOutputTokens,
+			TotalTokens:       ag.Usage.TotalTokens,
+			ToolCallCount:    ag.ToolCallCount,
+			Version:          version.Version,
+		}
+		id, err := agent.SaveSession(ag.History, ag.Tasks, ag.WorkDir, configDir, metadata)
 		if err != nil {
 			color.Red("  [!] Failed to auto-save session: %v", err)
 		} else {
@@ -369,7 +381,24 @@ func handleCommand(input string, ag *agent.Agent) bool {
 
 	case "/save":
 		configDir := filepath.Dir(config.GetConfigPath())
-		id, err := agent.SaveSession(ag.History, ag.Tasks, ag.WorkDir, configDir)
+		var startTime string
+		if len(ag.History) > 0 && !ag.History[0].Timestamp.IsZero() {
+			startTime = ag.History[0].Timestamp.Format(time.RFC3339)
+		} else {
+			startTime = time.Now().Format(time.RFC3339)
+		}
+		metadata := agent.SessionMetadata{
+			Provider:          ag.Provider.Name(),
+			Model:            ag.Provider.Name(),
+			StartTime:        startTime,
+			EndTime:          time.Now().Format(time.RFC3339),
+			TotalInputTokens:  ag.Usage.TotalInputTokens,
+			TotalOutputTokens: ag.Usage.TotalOutputTokens,
+			TotalTokens:       ag.Usage.TotalTokens,
+			ToolCallCount:    ag.ToolCallCount,
+			Version:          version.Version,
+		}
+		id, err := agent.SaveSession(ag.History, ag.Tasks, ag.WorkDir, configDir, metadata)
 		if err != nil {
 			color.Red("  Error saving session: %v\n", err)
 		} else {
@@ -431,14 +460,15 @@ func handleResume(ag *agent.Agent) {
 	fmt.Sscanf(choice, "%d", &idx)
 	if idx > 0 && idx <= len(sessions) {
 		sessionID := sessions[idx-1]
-		history, tasks, err := agent.LoadSession(sessionID, configDir)
+		history, tasks, metadata, err := agent.LoadSession(sessionID, configDir)
 		if err != nil {
 			color.Red("  Error loading session: %v\n", err)
 			return
 		}
 		ag.History = history
 		ag.Tasks = tasks
-		color.Green("  [OK] Resumed session: %s (%d messages)\n\n", sessionID, len(history))
+		color.Green("  [OK] Resumed session: %s (%d messages)\n", sessionID, len(history))
+		color.Cyan("    Provider: %s | Model: %s | Tokens: %d\n", metadata.Provider, metadata.Model, metadata.TotalTokens)
 	}
 }
 
@@ -486,11 +516,12 @@ func runOneShot(prompt string, sessionID string) error {
 	
 	if sessionID != "" {
 		configDir := filepath.Dir(config.GetConfigPath())
-		history, tasks, err := agent.LoadSession(sessionID, configDir)
+		history, tasks, metadata, err := agent.LoadSession(sessionID, configDir)
 		if err == nil {
 			ag.History = history
 			ag.Tasks = tasks
 			color.Green("  [OK] Resumed session: %s\n", sessionID)
+			color.Cyan("    Provider: %s | Model: %s | Tokens: %d\n", metadata.Provider, metadata.Model, metadata.TotalTokens)
 		}
 	}
 
